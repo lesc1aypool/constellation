@@ -12,13 +12,20 @@ type Preview =
   | { status: "ready"; mbid: string; deezerLink: string; tracks: Track[]; index: number };
 
 const norm = (s: string) =>
-  s.normalize("NFKD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+  s.normalize("NFKD").replace(/\p{M}/gu, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
 
 // Browsers only allow audio to start from a user gesture. Playing a tiny
 // silent clip on the first tap "unlocks" the element for later previews.
 const SILENT_WAV = "data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=";
 
-export default function GalaxyApp() {
+type AppProps = {
+  /** Where to load galaxy.json from. */
+  dataUrl?: string;
+  /** Play Deezer previews (needs the /api/preview route). Off in the static demo. */
+  previews?: boolean;
+};
+
+export default function GalaxyApp({ dataUrl = "/galaxy.json", previews = true }: AppProps) {
   const [galaxy, setGalaxy] = useState<Galaxy | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selected, setSelected] = useState<string | null>(null);
@@ -31,11 +38,11 @@ export default function GalaxyApp() {
   const unlocked = useRef(false);
 
   useEffect(() => {
-    fetch("/galaxy.json")
+    fetch(dataUrl)
       .then((r) => (r.ok ? r.json() : Promise.reject(new Error(`galaxy.json: ${r.status}`))))
       .then(setGalaxy)
       .catch((e) => setError(String(e)));
-  }, []);
+  }, [dataUrl]);
 
   const byId = useMemo(() => new Map(galaxy?.artists.map((a) => [a.mbid, a]) ?? []), [galaxy]);
   const clusterById = useMemo(() => new Map(galaxy?.clusters.map((c) => [c.id, c]) ?? []), [galaxy]);
@@ -89,7 +96,7 @@ export default function GalaxyApp() {
   const requestId = useRef(0);
   const loadPreview = (mbid: string) => {
     const artist = byId.get(mbid);
-    if (!artist) return;
+    if (!artist || !previews) return;
     const id = ++requestId.current;
     setPreview({ status: "loading", mbid });
     fetch(`/api/preview?artist=${encodeURIComponent(artist.name)}`)
@@ -190,6 +197,19 @@ export default function GalaxyApp() {
             onClose={() => setSelected(null)}
           />
           <div className="mt-4 border-t border-white/10 pt-3">
+            {!previews && (
+              <p className="text-xs text-zinc-400">
+                Previews play in the full app.{" "}
+                <a
+                  href={`https://www.deezer.com/search/${encodeURIComponent(artist.name)}`}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="underline hover:text-zinc-200"
+                >
+                  Listen on Deezer
+                </a>
+              </p>
+            )}
             {preview.status === "loading" && <p className="text-xs text-zinc-400">Finding a preview…</p>}
             {preview.status === "none" && <p className="text-xs text-zinc-400">No preview found on Deezer.</p>}
             {current && (
