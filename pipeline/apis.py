@@ -39,6 +39,17 @@ _last_call: dict[str, float] = {}
 _SECRET_PARAMS = {"api_key"}
 
 
+def trim_lastfm(data):
+    """Drop Last.fm fields we never use (bios, image lists, streamable flags)
+    before caching. Keeps stored Last.fm data far below their 100 MB limit."""
+    if isinstance(data, dict):
+        return {k: trim_lastfm(v) for k, v in data.items()
+                if k not in ("bio", "image", "streamable", "ontour")}
+    if isinstance(data, list):
+        return [trim_lastfm(v) for v in data]
+    return data
+
+
 def _cache_path(host: str, params: dict) -> Path:
     public = {k: v for k, v in sorted(params.items()) if k not in _SECRET_PARAMS}
     digest = hashlib.sha1(json.dumps(public, sort_keys=True).encode()).hexdigest()[:16]
@@ -72,6 +83,8 @@ def get_json(base_url: str, params: dict, *, retries: int = 5):
             continue
         resp.raise_for_status()
         data = resp.json()
+        if host == "ws.audioscrobbler.com":
+            data = trim_lastfm(data)
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(json.dumps(data))
         return data
@@ -141,3 +154,14 @@ def lastfm_info(mbid: str, name: str) -> dict:
         return _lastfm("artist.getinfo", mbid=mbid)["artist"]
     except LookupError:
         return _lastfm("artist.getinfo", artist=name, autocorrect=1)["artist"]
+
+
+def mb_resolve_exact(name: str) -> str | None:
+    """MBID for an artist name, but only if MusicBrainz has an exact-name match.
+
+    Used for the few Last.fm results that come without an MBID. Returns None
+    rather than guessing, because a wrong MBID is worse than a missing artist.
+    """
+    results = mb_search_artist(name, limit=5)
+    exact = [a for a in results if a["name"].casefold() == name.casefold()]
+    return exact[0]["id"] if exact else None
