@@ -38,16 +38,23 @@ One persistent galaxy with fixed positions and semantic zoom, inspired by the No
 - Constellations are stored as **artist lists, not coordinates**, so a full re-layout never breaks them.
 - Periodic full re-layouts keep the galaxy in step with community votes.
 
-### Zoom levels
+### Layers of interaction
 
-1. **Universe:** broad genre families (metal, jazz, hip-hop, electronic) as glowing regions.
-2. **Galaxy:** subgenres (Swedish melodic death metal, doom).
-3. **Solar system:** one artist with its closest connections.
-4. **Planets (later):** that artist's albums.
+Exploring the map moves through five **layers of interaction** (refer to them as "interaction layer 1", "layer 2" and so on). Each layer is a viewpoint with its own job; the space metaphor names it. The visual journey through the universe is the main experience. (Agreed 2026-11-25; still being explored, so the number of layers may change.)
 
-- Levels come from hierarchical community detection (Leiden or Louvain) in the same offline script; genre tags name each region.
-- Smaller artists fade in as you zoom, ranked by listener counts.
-- Camera glides smoothly between levels while detail fades in and out.
+| Layer | What you see | Metaphor | Job |
+| --- | --- | --- | --- |
+| 1 | Genre names only (stoner rock, black metal…). Widest view. | **Universe**: each genre is a galaxy. | Choose a direction. |
+| 2 | A genre splits into its subgenres (stoner metal, doom metal, sludge). | **Galaxy**: subgenres are its star clusters. | Narrow down. |
+| 3 | The most popular bands in each subgenre, not all of them. | **Bright stars**: popularity is brightness; zooming in is like a stronger telescope revealing fainter stars. | Familiar names as starting points. |
+| 4 | Click a band: it zooms in to that band and all its related bands, with lines showing listener overlap. | **Neighbourhood** | Hop from band to band. |
+| 5 | Only the band and its own system. | **Solar system**: the band is the sun, albums are planets. | Dig into one band. |
+
+- "Constellation" is reserved for user-drawn constellations (see below), not for layer 4.
+- Layers 1–2 come from hierarchical community detection (Leiden) in the offline script; genre tags name each region.
+- Layer 3 ranks bands by listener counts; smaller artists fade in as you zoom.
+- Camera glides smoothly between layers while detail fades in and out.
+- **Orientation (secondary):** a small breadcrumb at the side shows where you are (e.g. Universe › Stoner Rock › Doom Metal), alongside the trail of bands visited. Kept small; it supports the visual exploration and never competes with it.
 
 ### Band solar systems (later)
 
@@ -145,7 +152,7 @@ Later: schedule it (e.g. weekly via GitHub Actions) to add new artists and relea
 
 ## Roadmap
 
-- **Milestone 1 – Metal galaxy prototype:** pipeline for a few hundred to a few thousand metal artists; explorable fixed galaxy with search, click-to-travel, semantic zoom, previews. No accounts. Goal: find out whether exploring feels good.
+- **Milestone 1 – Metal galaxy prototype (built):** pipeline for a few hundred to a few thousand metal artists; explorable fixed galaxy with search, click-to-travel, semantic zoom, previews. No accounts. Goal: find out whether exploring feels good.
 - **Phase 2:** Supabase-backed data, accounts, voting, adding artists and connections, auto-moderation.
 - **Phase 3:** comments and stories on connections.
 - **Later:** artist panel, band solar systems, user constellations, personal map, playlist export, journeys.
