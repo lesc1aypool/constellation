@@ -38,23 +38,25 @@ One persistent galaxy with fixed positions and semantic zoom, inspired by the No
 - Constellations are stored as **artist lists, not coordinates**, so a full re-layout never breaks them.
 - Periodic full re-layouts keep the galaxy in step with community votes.
 
-### Layers of interaction
+### Levels
 
-Exploring the map moves through five **layers of interaction** (refer to them as "interaction layer 1", "layer 2" and so on). Each layer is a viewpoint with its own job; the space metaphor names it. The visual journey through the universe is the main experience. (Agreed 2026-11-25; still being explored, so the number of layers may change.)
+Exploring the map moves through five **levels**, named after how music is organised. Refer to them by name (the Subgenres level, the Neighbourhood level). Each level has a space metaphor that shapes how it looks. The visual journey through the universe is the main experience. (Agreed 2026-11-25; still being explored, so the levels may change.)
 
-| Layer | What you see | Metaphor | Job |
+| Level | What you see | Metaphor | Job |
 | --- | --- | --- | --- |
-| 1 | Genre names only (stoner rock, black metal…). Widest view. | **Universe**: each genre is a galaxy. | Choose a direction. |
-| 2 | A genre splits into its subgenres (stoner metal, doom metal, sludge). | **Galaxy**: subgenres are its star clusters. | Narrow down. |
-| 3 | The most popular bands in each subgenre, not all of them. | **Bright stars**: popularity is brightness; zooming in is like a stronger telescope revealing fainter stars. | Familiar names as starting points. |
-| 4 | Click a band: it zooms in to that band and all its related bands, with lines showing listener overlap. | **Neighbourhood** | Hop from band to band. |
-| 5 | Only the band and its own system. | **Solar system**: the band is the sun, albums are planets. | Dig into one band. |
+| **Genres** | Genre names only (stoner rock, black metal…). Widest view. | **Universe**: each genre is a galaxy. | Choose a direction. |
+| **Subgenres** | A genre splits into its subgenres (stoner metal, doom metal, sludge). | **Galaxy**: subgenres are its star clusters. | Narrow down. |
+| **Popular bands** | The most popular bands in each subgenre (about 40%), not all of them. The subgenre you're in is bright and named; neighbouring ones recede. | **Bright stars**: popularity is brightness; looking closer is like a stronger telescope revealing fainter stars. | Familiar names as starting points. |
+| **Neighbourhood** | A band and all its related bands, with line width showing listener overlap. | **Neighbourhood** | Hop from band to band. |
+| **Band** (later) | Only the band and its own system. | **Solar system**: the band is the sun, albums are planets. | Dig into one band. |
 
-- "Constellation" is reserved for user-drawn constellations (see below), not for layer 4.
-- Layers 1–2 come from hierarchical community detection (Leiden) in the offline script; genre tags name each region.
-- Layer 3 ranks bands by listener counts; smaller artists fade in as you zoom.
-- **Layers are snap points.** The view always rests on exactly one layer; you can't stop between two. Scrolling, pinching or the +/− buttons move one layer in or out (2 → 3, 3 → 4), and an animated transition carries the camera there while bands and labels fade in or out. (Agreed 2026-11-25.)
-- **Orientation (secondary):** a small breadcrumb at the side shows where you are (e.g. Universe › Stoner Rock › Doom Metal), alongside the trail of bands visited. Kept small; it supports the visual exploration and never competes with it.
+- **Levels are snap points.** The view always rests on exactly one level; you can't stop between two. Scrolling, pinching or the +/− buttons move one level in or out, and an animated transition carries the camera there while bands and labels fade in or out.
+- **Zooming in enters what's under your mouse, or between your fingers when pinching.** Clicking or tapping a name or band goes straight there.
+- **Focus highlight:** a soft breathing glow shows what you'd enter: under the mouse on desktop, under the pinch while pinching on touch. No glow at the Genres level, so nothing looks like a call to action before you've interacted.
+- **Dragging sideways always works**, at every level; "where you are" follows the view. Clicking a related band at the Neighbourhood level stays at that level and glides to it.
+- "Constellation" is reserved for user-drawn constellations (see below), not for the Neighbourhood level.
+- Genres and subgenres come from hierarchical community detection (Leiden) in the offline script; genre tags name each region. Popular bands are ranked by listener counts.
+- **Orientation (secondary):** a small breadcrumb at the side shows where you are (Universe › Stoner Rock › Doom Metal › band), beside the trail of bands visited. Kept small; it supports the visual exploration and never competes with it.
 
 ### Band solar systems (later)
 

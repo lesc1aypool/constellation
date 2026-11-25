@@ -1,16 +1,18 @@
 "use client";
 
-// The WebGL galaxy, organised as snap-point "layers of interaction"
-// (see docs/SPEC.md):
-//   1 Universe      genre names over soft nebulas
-//   2 Galaxy        a genre's subgenres (star clusters)
-//   3 Bright stars  the popular bands of every subgenre
-//   4 Neighbourhood a band and its related bands
-// The view always rests on one layer. Scroll / pinch / +− / keys move one layer
+// The WebGL galaxy, organised as snap-point levels (see docs/SPEC.md):
+//   Genres         (universe)     genre names over soft nebulas
+//   Subgenres      (galaxy)       a genre's subgenres as star clusters
+//   Popular bands  (bright stars) the best-known bands of each subgenre
+//   Neighbourhood                 a band and its related bands
+//   Band           (solar system) not built yet
+// Internally the levels are numbered 1-4 in that order (`Layer`).
+// The view always rests on one level. Scroll / pinch / +− / keys move one level
 // at a time and an animation carries the camera there while stars fade.
 //
-// "Focus" is what you're aiming at: nearest the mouse on desktop, nearest the
-// screen centre on touch devices. It glows and pulses; zooming in enters it.
+// Zooming in enters whatever is nearest the mouse (desktop) or the middle of
+// the pinch (touch). On desktop that target glows as you move the mouse; on
+// touch it glows while you pinch. There is no glow at the Genres level.
 import { useEffect, useImperativeHandle, useRef, type Ref } from "react";
 import type Sigma from "sigma";
 import { type Galaxy, REGION_COLORS, edgeColor, hexToRgba } from "@/lib/galaxy";
@@ -207,7 +209,11 @@ export default function GalaxyMap({ galaxy, selected, onSelect, onNavChange, onN
       const hoverDevice = window.matchMedia("(hover: hover) and (pointer: fine)").matches;
 
       const litTarget = (n: string): number => {
-        if (nav.layer === 3) return graph.getNodeAttribute(n, "popular") ? 1 : 0;
+        if (nav.layer === 3) {
+          if (!graph.getNodeAttribute(n, "popular")) return 0;
+          // The subgenre you're in is bright and named; the ones around it recede.
+          return graph.getNodeAttribute(n, "subId") === nav.subId ? 1 : 0.4;
+        }
         if (nav.layer === 4) return n === nav.band || neighbours.has(n) ? 1 : 0;
         return 0;
       };
@@ -310,8 +316,14 @@ export default function GalaxyMap({ galaxy, selected, onSelect, onNavChange, onN
 
       const applyLayerChrome = () => {
         for (const { c, neb, label } of overlay) {
-          const la = showLabel(c) ? (c.level === 0 ? REGION_LABEL : SUB_LABEL)[nav.layer] : 0;
-          const na = (c.level === 0 ? REGION_NEBULA : SUB_NEBULA)[nav.layer];
+          const current = nav.layer === 3 && c.id === nav.subId;
+          let la = showLabel(c) ? (c.level === 0 ? REGION_LABEL : SUB_LABEL)[nav.layer] : 0;
+          let na = (c.level === 0 ? REGION_NEBULA : SUB_NEBULA)[nav.layer];
+          if (nav.layer === 3 && c.level === 1) {
+            la = current ? 1 : showLabel(c) ? 0.28 : 0;
+            na = current ? 0.65 : 0.2;
+          }
+          label.classList.toggle("is-current", current);
           label.style.opacity = String(la);
           label.classList.toggle("is-clickable", la >= 0.3);
           neb.style.opacity = String(na);
@@ -384,7 +396,7 @@ export default function GalaxyMap({ galaxy, selected, onSelect, onNavChange, onN
         activeGlow = 1 - activeGlow;
         const g = glows[activeGlow];
         g.target = next;
-        if (next) {
+        if (next && nav.layer !== 1) {
           const color =
             next.kind === "band" ? (graph.getNodeAttribute(next.id, "baseColor") as string) : clusters.get(next.id)!.color;
           g.el.style.setProperty("--c", color);
@@ -409,9 +421,11 @@ export default function GalaxyMap({ galaxy, selected, onSelect, onNavChange, onN
         return { x: w / 2, y: h / 2 };
       };
 
-      const computeFocus = (): Focus => {
+      // What's nearest a point. With no point: the mouse on desktop, nothing on touch.
+      // `limit` keeps hover focus from reaching across the screen.
+      const computeFocus = (at?: { x: number; y: number } | null, limit = true): Focus => {
         if (!sigma) return null;
-        const from = hoverDevice ? pointer : aimPoint();
+        const from = at !== undefined ? at : hoverDevice ? pointer : null;
         if (!from) return nav.layer === 4 && nav.band ? { kind: "band", id: nav.band } : null;
         let best: Focus = null;
         let bestD = Infinity;
@@ -431,7 +445,7 @@ export default function GalaxyMap({ galaxy, selected, onSelect, onNavChange, onN
             consider({ kind: "band", id: n }, viewportOf(n), l > 0.5 ? 1 : 1.8);
           }
         const reach = nav.layer <= 2 ? 220 : 70;
-        if (hoverDevice && bestD > reach) return nav.layer === 4 && nav.band ? { kind: "band", id: nav.band } : null;
+        if (limit && bestD > reach) return nav.layer === 4 && nav.band ? { kind: "band", id: nav.band } : null;
         return best;
       };
 
@@ -595,9 +609,10 @@ export default function GalaxyMap({ galaxy, selected, onSelect, onNavChange, onN
         setTimeout(() => animateCamera({ ratio: r }, 260), 170);
       };
 
-      const stepIn = () => {
+      const stepIn = (at?: { x: number; y: number }) => {
         if (performance.now() < lockedUntil) return;
-        const f = computeFocus();
+        const { width: w, height: h } = sigma!.getDimensions();
+        const f = computeFocus(at ?? (hoverDevice && pointer ? pointer : { x: w / 2, y: h / 2 }), false);
         if (nav.layer === 1) enterRegion(f?.kind === "cluster" ? f.id : nearest(regionList).id);
         else if (nav.layer === 2) enterSub(f?.kind === "cluster" ? f.id : nearest(subList).id);
         else if (nav.layer === 3) {
@@ -638,7 +653,8 @@ export default function GalaxyMap({ galaxy, selected, onSelect, onNavChange, onN
         }
         if (wheelAcc < -45) {
           wheelAcc = 0;
-          stepIn();
+          const r = wrap.getBoundingClientRect();
+          stepIn({ x: e.clientX - r.left, y: e.clientY - r.top });
         } else if (wheelAcc > 45) {
           wheelAcc = 0;
           stepOut();
@@ -648,6 +664,13 @@ export default function GalaxyMap({ galaxy, selected, onSelect, onNavChange, onN
       let pinchDone = false;
       const touchDist = (e: TouchEvent) =>
         Math.hypot(e.touches[0].clientX - e.touches[1].clientX, e.touches[0].clientY - e.touches[1].clientY);
+      const touchMid = (e: TouchEvent) => {
+        const r = wrap.getBoundingClientRect();
+        return {
+          x: (e.touches[0].clientX + e.touches[1].clientX) / 2 - r.left,
+          y: (e.touches[0].clientY + e.touches[1].clientY) / 2 - r.top,
+        };
+      };
       // Two-finger gestures are ours (layer steps); keep them away from Sigma,
       // which would otherwise also pan/zoom the camera with the same fingers.
       const onTouchStart = (e: TouchEvent) => {
@@ -655,6 +678,8 @@ export default function GalaxyMap({ galaxy, selected, onSelect, onNavChange, onN
           e.stopPropagation();
           pinchStart = touchDist(e);
           pinchDone = false;
+          // Show what the pinch will open.
+          setFocus(computeFocus(touchMid(e), false));
         }
       };
       const onTouchMove = (e: TouchEvent) => {
@@ -663,14 +688,17 @@ export default function GalaxyMap({ galaxy, selected, onSelect, onNavChange, onN
         const scale = touchDist(e) / pinchStart;
         if (scale > 1.3) {
           pinchDone = true;
-          stepIn();
+          stepIn(touchMid(e));
         } else if (scale < 0.75) {
           pinchDone = true;
           stepOut();
         }
       };
       const onTouchEnd = (e: TouchEvent) => {
-        if (e.touches.length < 2) pinchStart = 0;
+        if (e.touches.length < 2 && pinchStart) {
+          pinchStart = 0;
+          if (!pinchDone) setFocus(computeFocus());
+        }
       };
       const onMouseMove = (e: MouseEvent) => {
         const r = wrap.getBoundingClientRect();
@@ -728,6 +756,12 @@ export default function GalaxyMap({ galaxy, selected, onSelect, onNavChange, onN
             if (s.id !== nav.subId) {
               nav = { ...nav, subId: s.id, regionId: s.parentId };
               emitNav();
+              // Move the "you are here" emphasis to the new subgenre.
+              litFrom = Float32Array.from(lit);
+              litTo = Float32Array.from(nodes, litTarget);
+              dustFrom = dust;
+              applyLayerChrome();
+              runTween();
             }
           }
         }

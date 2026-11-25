@@ -84,6 +84,11 @@ body {
   letter-spacing: 0.16em;
   text-shadow: 0 0 12px currentColor, 0 0 3px rgba(0, 0, 0, 0.95);
 }
+.cluster-label--sub.is-current {
+  font-size: 15px;
+  letter-spacing: 0.24em;
+  text-shadow: 0 0 22px currentColor, 0 0 4px rgba(0, 0, 0, 0.95);
+}
 .cluster-label.is-focused {
   filter: brightness(1.35);
   letter-spacing: 0.28em;
