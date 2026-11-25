@@ -94,6 +94,52 @@ body {
   letter-spacing: 0.28em;
 }
 
+/* Line tag: hovering a line whose band is off-screen shows that band's name
+   and an arrow drifting toward it. */
+.line-tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 3px 10px;
+  margin: -34px 0 0 12px;
+  border-radius: 999px;
+  background: rgba(10, 11, 22, 0.88);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c, #fff) 45%, transparent), 0 0 18px color-mix(in srgb, var(--c, #fff) 30%, transparent);
+  color: #f4f3fb;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 180ms ease;
+  will-change: transform, opacity;
+}
+.line-tag.on {
+  opacity: 1;
+}
+.line-tag__arrow {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--c, #fff);
+}
+.line-tag__chevron {
+  display: block;
+  font-size: 13px;
+  line-height: 1;
+  animation: tag-drift 1.4s ease-in-out infinite;
+}
+@keyframes tag-drift {
+  0%, 100% { transform: translateX(-2px); opacity: 0.55; }
+  50% { transform: translateX(3px); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .line-tag__chevron { animation: none; }
+}
+
 /* Nebulas: soft colour clouds behind each genre and subgenre. */
 .nebula {
   position: absolute;

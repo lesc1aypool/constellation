@@ -203,6 +203,7 @@ export default function GalaxyMap({ galaxy, selected, onSelect, onNavChange, onN
       let labelled = new Set<string>();
       let maxWeight = 1;
       let focus: Focus = null;
+      let hoverLine: string | null = null; // neighbour at the far end of the hovered line
       let pointer: { x: number; y: number } | null = null;
       let lockedUntil = 0;
       let animToken = 0;
@@ -272,7 +273,13 @@ export default function GalaxyMap({ galaxy, selected, onSelect, onNavChange, onN
             // Width shows listener overlap relative to this band's closest match.
             const rel = Math.pow((data.weight as number) / maxWeight, 2);
             const starWidth = 2 * (graph.getNodeAttribute(other, "size") as number);
-            return { ...res, color: edgeColor(col, (0.25 + 0.65 * rel) * fade), size: 0.4 + rel * starWidth * 0.85, zIndex: 1 };
+            const hovered = other === hoverLine;
+            return {
+              ...res,
+              color: edgeColor(hovered ? "#ffffff" : col, hovered ? 0.95 : (0.25 + 0.65 * rel) * fade),
+              size: 0.4 + rel * starWidth * 0.85 + (hovered ? 1.5 : 0),
+              zIndex: hovered ? 2 : 1,
+            };
           }
           if (nav.layer === 3 || (nav.layer === 4 && Math.min(ls, lt) > 0.01)) {
             const a = Math.min(ls, lt) * (nav.layer === 3 ? 1 : 0.3);
@@ -474,6 +481,83 @@ export default function GalaxyMap({ galaxy, selected, onSelect, onNavChange, onN
         tweenRaf = requestAnimationFrame(step);
       };
 
+      // --- Lines at the Neighbourhood level: hover to see where an off-screen
+      // band is, click (or tap) to travel along the line to it. --------------------
+      const lineTag = document.createElement("div");
+      lineTag.className = "line-tag";
+      lineTag.innerHTML =
+        '<span class="line-tag__name"></span><span class="line-tag__arrow"><span class="line-tag__chevron">➜</span></span>';
+      labelHost.appendChild(lineTag);
+      const tagName = lineTag.querySelector(".line-tag__name") as HTMLSpanElement;
+      const tagArrow = lineTag.querySelector(".line-tag__arrow") as HTMLSpanElement;
+
+      const segmentPoint = (p: { x: number; y: number }, a: { x: number; y: number }, b: { x: number; y: number }) => {
+        const dx = b.x - a.x;
+        const dy = b.y - a.y;
+        const len2 = dx * dx + dy * dy || 1;
+        const t = Math.max(0, Math.min(1, ((p.x - a.x) * dx + (p.y - a.y) * dy) / len2));
+        const q = { x: a.x + t * dx, y: a.y + t * dy };
+        return { q, d: Math.hypot(p.x - q.x, p.y - q.y) };
+      };
+
+      // Which of the selected band's lines is under this point (if any)?
+      const hitLine = (p: { x: number; y: number }, tolerance: number): string | null => {
+        if (nav.layer !== 4 || !nav.band) return null;
+        // Stars win over lines: near a lit star, you mean the star.
+        for (const n of [nav.band, ...neighbours]) {
+          const v = viewportOf(n);
+          if (Math.hypot(v.x - p.x, v.y - p.y) < 14) return null;
+        }
+        const a = viewportOf(nav.band);
+        let best: string | null = null;
+        let bestD = tolerance;
+        for (const n of neighbours) {
+          const { d } = segmentPoint(p, a, viewportOf(n));
+          if (d < bestD) {
+            bestD = d;
+            best = n;
+          }
+        }
+        return best;
+      };
+
+      // Out of view: beyond the screen edge, or hidden under the artist panel
+      // (right-hand column on desktop, bottom sheet on phones).
+      const isOffScreen = (n: string) => {
+        const { width: w, height: h } = sigma!.getDimensions();
+        const v = viewportOf(n);
+        const m = 6; // a star right at the edge still counts as visible
+        if (v.x < -m || v.y < -m || v.x > w + m || v.y > h + m) return true;
+        if (w >= 640) return v.x > w - 380;
+        return v.y > h * 0.54;
+      };
+
+      const placeLineTag = () => {
+        if (!hoverLine || !pointer || !nav.band || !isOffScreen(hoverLine)) {
+          lineTag.classList.remove("on");
+          return;
+        }
+        const a = viewportOf(nav.band);
+        const b = viewportOf(hoverLine);
+        const { q } = segmentPoint(pointer, a, b);
+        const angle = Math.atan2(b.y - a.y, b.x - a.x);
+        tagName.textContent = graph.getNodeAttribute(hoverLine, "label") as string;
+        tagArrow.style.transform = `rotate(${angle.toFixed(3)}rad)`;
+        lineTag.style.setProperty("--c", graph.getNodeAttribute(hoverLine, "baseColor") as string);
+        lineTag.style.transform = `translate(${q.x.toFixed(1)}px, ${q.y.toFixed(1)}px)`;
+        lineTag.classList.add("on");
+      };
+
+      const setHoverLine = (next: string | null) => {
+        if (next === hoverLine) {
+          placeLineTag();
+          return;
+        }
+        hoverLine = next;
+        placeLineTag();
+        sigma?.refresh({ skipIndexation: true });
+      };
+
       const emitNav = () => {
         const region = nav.regionId ? clusters.get(nav.regionId) : null;
         const sub = nav.subId ? clusters.get(nav.subId) : null;
@@ -489,6 +573,8 @@ export default function GalaxyMap({ galaxy, selected, onSelect, onNavChange, onN
 
       const setNav = (next: typeof nav) => {
         nav = next;
+        hoverLine = null;
+        lineTag.classList.remove("on");
         litFrom = Float32Array.from(lit);
         litTo = Float32Array.from(nodes, litTarget);
         dustFrom = dust;
@@ -510,14 +596,26 @@ export default function GalaxyMap({ galaxy, selected, onSelect, onNavChange, onN
       };
 
       // Fit a set of stars on screen (optionally aiming them at a point other than the centre).
-      const frameMembers = (members: string[], pad: number, aim?: { x: number; y: number }) => {
+      // With `centreOn`, that star stays at the centre (or aim point) and the
+      // view is sized to fit the others around it.
+      const frameMembers = (
+        members: string[],
+        pad: number,
+        aim?: { x: number; y: number },
+        centreOn?: string,
+        bounds: [number, number] = [0.025, 1],
+      ) => {
         const { width: w, height: h } = sigma!.getDimensions();
         let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+        const c = centreOn ? sigma!.getNodeDisplayData(centreOn) : null;
         for (const m of members) {
           const d = sigma!.getNodeDisplayData(m);
           if (!d) continue;
-          minX = Math.min(minX, d.x); maxX = Math.max(maxX, d.x);
-          minY = Math.min(minY, d.y); maxY = Math.max(maxY, d.y);
+          const pts = c ? [d, { x: 2 * c.x - d.x, y: 2 * c.y - d.y }] : [d];
+          for (const q of pts) {
+            minX = Math.min(minX, q.x); maxX = Math.max(maxX, q.x);
+            minY = Math.min(minY, q.y); maxY = Math.max(maxY, q.y);
+          }
         }
         // Framed-graph units per pixel at the current ratio.
         const a = sigma!.viewportToFramedGraph({ x: 0, y: 0 });
@@ -525,7 +623,8 @@ export default function GalaxyMap({ galaxy, selected, onSelect, onNavChange, onN
         const unitsPerPx = Math.hypot(b.x - a.x, b.y - a.y) / 100 / camera.ratio;
         const availW = (w < 640 ? w : aim ? w - 380 : w) * 0.88;
         const availH = (h - 140) * 0.88;
-        const ratio = Math.min(1, Math.max(0.025, Math.max(
+        // Clamp before aiming: the panel offset depends on the final zoom.
+        const ratio = Math.min(bounds[1], Math.max(bounds[0], Math.max(
           ((maxX - minX) * pad) / (availW * unitsPerPx),
           ((maxY - minY) * pad) / (availH * unitsPerPx),
         )));
@@ -572,8 +671,7 @@ export default function GalaxyMap({ galaxy, selected, onSelect, onNavChange, onN
         const wasFar = nav.layer === 4 && nav.band !== null;
         setNav({ layer: 4, regionId: clusters.get(sub)!.parentId, subId: sub, band: mbid });
         // Frame the band with its closest few neighbours, clear of the artist panel.
-        const target = frameMembers([mbid, ...ranked.slice(0, 6).map((x) => x.other)], 1.35, aimPoint());
-        target.ratio = Math.min(0.3, Math.max(0.05, target.ratio));
+        const target = frameMembers([mbid, ...ranked.slice(0, 6).map((x) => x.other)], 1.2, aimPoint(), mbid, [0.05, 0.3]);
         const dist = Math.hypot(target.x - camera.x, target.y - camera.y);
         if (wasFar && dist > 0.25) {
           // Long hop between neighbourhoods: rise up, then glide down.
@@ -704,10 +802,15 @@ export default function GalaxyMap({ galaxy, selected, onSelect, onNavChange, onN
         const r = wrap.getBoundingClientRect();
         pointer = { x: e.clientX - r.left, y: e.clientY - r.top };
         refreshFocus();
+        if (nav.layer === 4) {
+          setHoverLine(hitLine(pointer, 8));
+          if (hoverLine) wrap.style.cursor = "pointer";
+        }
       };
       const onMouseLeave = () => {
         pointer = null;
         refreshFocus();
+        setHoverLine(null);
       };
       const onKey = (e: KeyboardEvent) => {
         if ((e.target as HTMLElement | null)?.tagName === "INPUT") return;
@@ -738,8 +841,10 @@ export default function GalaxyMap({ galaxy, selected, onSelect, onNavChange, onN
         else if (nav.layer === 2) enterSub(graph.getNodeAttribute(node, "subId"));
         else callbacks.current.onSelect(node);
       });
-      sigma.on("clickStage", () => {
-        if (nav.layer === 4) callbacks.current.onSelect(null);
+      sigma.on("clickStage", ({ event }) => {
+        if (nav.layer !== 4) return;
+        const along = hitLine({ x: event.x, y: event.y }, hoverDevice ? 8 : 18);
+        callbacks.current.onSelect(along);
       });
 
       // While you drag at layers 2–3, "where am I" follows the view.
@@ -767,7 +872,10 @@ export default function GalaxyMap({ galaxy, selected, onSelect, onNavChange, onN
         }
         refreshFocus();
       });
-      sigma.on("afterRender", placeOverlays);
+      sigma.on("afterRender", () => {
+        placeOverlays();
+        placeLineTag();
+      });
 
       api.current = {
         enterBand,
