@@ -52,15 +52,25 @@ body {
   .starfield::after { animation: none; }
 }
 
-/* Region / subregion names floating over the map (positioned from JS). */
+/* Genre / subgenre names floating over the map (positioned from JS).
+   They are buttons: click or tap one to enter it. */
 .cluster-label {
   position: absolute;
   left: 0;
   top: 0;
+  padding: 6px 10px;
+  border: 0;
+  background: none;
+  font: inherit;
   white-space: nowrap;
   text-transform: uppercase;
-  transition: opacity 250ms ease;
+  pointer-events: none;
+  transition: opacity 650ms ease, filter 400ms ease, letter-spacing 400ms ease;
   will-change: transform, opacity;
+}
+.cluster-label.is-clickable {
+  pointer-events: auto;
+  cursor: pointer;
 }
 .cluster-label--region {
   font-size: 15px;
@@ -69,11 +79,97 @@ body {
   text-shadow: 0 0 18px currentColor, 0 0 4px rgba(0, 0, 0, 0.9);
 }
 .cluster-label--sub {
-  font-size: 11px;
+  font-size: 12px;
   font-weight: 600;
   letter-spacing: 0.16em;
-  text-shadow: 0 0 10px rgba(0, 0, 0, 0.95);
-  filter: brightness(1.15);
+  text-shadow: 0 0 12px currentColor, 0 0 3px rgba(0, 0, 0, 0.95);
+}
+.cluster-label.is-focused {
+  filter: brightness(1.35);
+  letter-spacing: 0.28em;
+}
+
+/* Nebulas: soft colour clouds behind each genre and subgenre. */
+.nebula {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--c) 30%, transparent) 0%,
+    color-mix(in srgb, var(--c) 12%, transparent) 32%,
+    color-mix(in srgb, var(--c) 4%, transparent) 55%,
+    transparent 70%
+  );
+  mix-blend-mode: screen;
+  transition: opacity 900ms ease;
+  will-change: transform, opacity, width;
+}
+
+/* Focus glow: what you're aiming at breathes softly with a slow ripple.
+   Two of these crossfade when focus moves, so it never jumps. */
+.focus-glow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  transition: opacity 420ms ease, width 300ms ease, height 300ms ease;
+  mix-blend-mode: screen;
+  will-change: transform, opacity;
+}
+.focus-glow.on {
+  opacity: 1;
+}
+.focus-glow__bloom,
+.focus-glow__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+.focus-glow__bloom {
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--c) 55%, white) 0%,
+    color-mix(in srgb, var(--c) 55%, transparent) 14%,
+    color-mix(in srgb, var(--c) 22%, transparent) 32%,
+    color-mix(in srgb, var(--c) 6%, transparent) 52%,
+    transparent 68%
+  );
+  animation: glow-breathe 2.8s ease-in-out infinite;
+}
+.focus-glow__ring {
+  inset: 34%;
+  border: 1.5px solid color-mix(in srgb, var(--c) 80%, white);
+  box-shadow: 0 0 12px var(--c);
+  opacity: 0;
+  animation: glow-ripple 2.8s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+}
+.focus-glow.is-cluster .focus-glow__bloom {
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--c) 42%, transparent) 0%,
+    color-mix(in srgb, var(--c) 20%, transparent) 30%,
+    color-mix(in srgb, var(--c) 6%, transparent) 50%,
+    transparent 68%
+  );
+}
+.focus-glow.is-cluster .focus-glow__ring {
+  inset: 22%;
+  border-width: 1px;
+}
+@keyframes glow-breathe {
+  0%, 100% { transform: scale(0.86); opacity: 0.6; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+@keyframes glow-ripple {
+  0% { transform: scale(0.7); opacity: 0; }
+  12% { opacity: 0.75; }
+  100% { transform: scale(2.1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .focus-glow__bloom { animation: none; }
+  .focus-glow__ring { animation: none; opacity: 0.5; }
 }
 
 @media (max-width: 640px) {

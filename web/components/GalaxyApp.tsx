@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import GalaxyMap, { type GalaxyMapHandle } from "./GalaxyMap";
+import GalaxyMap, { type GalaxyMapHandle, type Nav } from "./GalaxyMap";
 import { type Artist, type Galaxy, REGION_COLORS, formatListeners } from "@/lib/galaxy";
 
 type Track = { title: string; preview: string; link: string; album: string; cover: string };
@@ -33,6 +33,14 @@ export default function GalaxyApp({ dataUrl = "/galaxy.json", previews = true }:
   const [preview, setPreview] = useState<Preview>({ status: "idle" });
   const [playing, setPlaying] = useState(false);
   const [soundOn, setSoundOn] = useState(true);
+  const [nav, setNav] = useState<Nav | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  const noticeTimer = useRef(0);
+  const showNotice = useCallback((message: string) => {
+    setNotice(message);
+    clearTimeout(noticeTimer.current);
+    noticeTimer.current = window.setTimeout(() => setNotice(null), 3200);
+  }, []);
   const mapRef = useRef<GalaxyMapHandle>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const unlocked = useRef(false);
@@ -115,7 +123,8 @@ export default function GalaxyApp({ dataUrl = "/galaxy.json", previews = true }:
   };
 
   // --- navigation ----------------------------------------------------------------
-  const select = (mbid: string | null, opts: { fly?: boolean; fromTrail?: number } = {}) => {
+  // Selecting a band enters interaction layer 4; the map follows `selected`.
+  const select = (mbid: string | null, opts: { fromTrail?: number } = {}) => {
       unlockAudio();
       setSelected(mbid);
       if (!mbid) return;
@@ -125,16 +134,7 @@ export default function GalaxyApp({ dataUrl = "/galaxy.json", previews = true }:
         if (t[t.length - 1] === mbid) return t;
         return [...t, mbid].slice(-40);
       });
-      if (opts.fly !== false) mapRef.current?.flyTo(mbid);
   };
-
-  useEffect(() => {
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape" && document.activeElement?.tagName !== "INPUT") setSelected(null);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, []);
 
   if (error) return <div className="p-6 text-red-300">Couldn&apos;t load the galaxy: {error}</div>;
 
@@ -144,7 +144,14 @@ export default function GalaxyApp({ dataUrl = "/galaxy.json", previews = true }:
   return (
     <main className="starfield fixed inset-0 overflow-hidden text-zinc-100">
       {galaxy ? (
-        <GalaxyMap ref={mapRef} galaxy={galaxy} selected={selected} onSelect={(m) => select(m)} />
+        <GalaxyMap
+          ref={mapRef}
+          galaxy={galaxy}
+          selected={selected}
+          onSelect={(m) => select(m)}
+          onNavChange={setNav}
+          onNotice={showNotice}
+        />
       ) : (
         <div className="absolute inset-0 grid place-items-center text-sm text-zinc-400">Charting the galaxy…</div>
       )}
@@ -155,34 +162,38 @@ export default function GalaxyApp({ dataUrl = "/galaxy.json", previews = true }:
           <h1 className="hidden text-sm font-semibold tracking-[0.25em] text-zinc-300 uppercase sm:block">Constellation</h1>
           {galaxy && <Search artists={galaxy.artists} onPick={(m) => select(m)} />}
         </div>
-        {trail.length > 0 && (
-          <nav aria-label="Your path" className="pointer-events-auto flex max-w-full items-center gap-1 overflow-x-auto pb-1 text-xs [scrollbar-width:none]">
-            {trail.map((m, i) => {
-              const a = byId.get(m);
-              const isCurrent = i === trail.length - 1 && m === selected;
-              return (
-                <span key={`${m}-${i}`} className="flex shrink-0 items-center gap-1">
-                  {i > 0 && <span className="text-zinc-600">›</span>}
-                  <button
-                    onClick={() => select(m, { fromTrail: i })}
-                    className={`rounded-full px-2 py-0.5 backdrop-blur transition ${
-                      isCurrent ? "bg-white/20 text-white" : "bg-black/40 text-zinc-300 hover:bg-white/10"
-                    }`}
-                  >
-                    {a?.name ?? "?"}
-                  </button>
-                </span>
-              );
-            })}
-          </nav>
+        {nav && (
+          <div className="pointer-events-auto flex max-w-full flex-col gap-1 text-[11px]">
+            <Location nav={nav} band={artist?.name ?? null} onGo={(layer, id) => mapRef.current?.goTo(layer, id)} />
+            {trail.length > 1 && (
+              <nav aria-label="Bands you've visited" className="flex max-w-full items-center gap-1 overflow-x-auto pb-1 [scrollbar-width:none]">
+                <span className="shrink-0 text-zinc-600">Path</span>
+                {trail.map((m, i) => {
+                  const a = byId.get(m);
+                  const isCurrent = i === trail.length - 1 && m === selected;
+                  return (
+                    <span key={`${m}-${i}`} className="flex shrink-0 items-center gap-1">
+                      {i > 0 && <span className="text-zinc-700">›</span>}
+                      <button
+                        onClick={() => select(m, { fromTrail: i })}
+                        className={`rounded-full px-1.5 py-0.5 transition ${isCurrent ? "text-white" : "text-zinc-400 hover:text-zinc-200"}`}
+                      >
+                        {a?.name ?? "?"}
+                      </button>
+                    </span>
+                  );
+                })}
+              </nav>
+            )}
+          </div>
         )}
       </div>
 
       {/* Zoom controls */}
       <div className="absolute right-3 bottom-3 flex flex-col gap-1 max-sm:top-28 max-sm:bottom-auto sm:right-4 sm:bottom-4">
-        <RoundButton title="Zoom in" onClick={() => mapRef.current?.zoomBy(1.6)}>+</RoundButton>
-        <RoundButton title="Zoom out" onClick={() => mapRef.current?.zoomBy(1 / 1.6)}>−</RoundButton>
-        <RoundButton title="Show whole galaxy" onClick={() => mapRef.current?.reset()}>◎</RoundButton>
+        <RoundButton title="Go one layer deeper" onClick={() => mapRef.current?.stepIn()}>+</RoundButton>
+        <RoundButton title="Back out one layer" onClick={() => mapRef.current?.stepOut()}>−</RoundButton>
+        <RoundButton title="Whole universe" onClick={() => mapRef.current?.goTo(1)}>◎</RoundButton>
       </div>
 
       {/* Artist panel */}
@@ -239,10 +250,17 @@ export default function GalaxyApp({ dataUrl = "/galaxy.json", previews = true }:
         </aside>
       )}
 
-      {!selected && galaxy && (
-        <p className="pointer-events-none absolute inset-x-0 bottom-10 text-center text-xs text-zinc-500 sm:bottom-4">
-          Scroll or pinch to zoom · drag to pan · click a star to listen
+      {notice ? (
+        <p role="status" className="pointer-events-none absolute inset-x-4 bottom-10 text-center text-xs text-zinc-300 sm:bottom-5">
+          <span className="rounded-full bg-black/60 px-3 py-1.5 ring-1 ring-white/10 backdrop-blur">{notice}</span>
         </p>
+      ) : (
+        !selected &&
+        nav && (
+          <p className="pointer-events-none absolute inset-x-4 bottom-10 text-center text-xs text-zinc-500 sm:bottom-4">
+            {LAYER_HINTS[nav.layer]}
+          </p>
+        )
       )}
 
       <footer className="absolute bottom-1 left-2 text-[10px] text-zinc-600 max-sm:hidden">
@@ -251,6 +269,57 @@ export default function GalaxyApp({ dataUrl = "/galaxy.json", previews = true }:
         <a className="underline" href="https://www.deezer.com" target="_blank" rel="noreferrer">Deezer</a>
       </footer>
     </main>
+  );
+}
+
+const LAYER_HINTS: Record<number, string> = {
+  1: "Scroll or pinch into a genre · click or tap a name to enter",
+  2: "Scroll or pinch into a subgenre · drag to explore",
+  3: "Click or tap a band to see its neighbourhood · drag to wander",
+  4: "",
+};
+
+// "Where am I": Universe › genre › subgenre › band. Small, to the side.
+function Location({
+  nav, band, onGo,
+}: {
+  nav: Nav;
+  band: string | null;
+  onGo: (layer: 1 | 2 | 3, id?: string) => void;
+}) {
+  const parts: { label: string; onClick?: () => void; current: boolean }[] = [
+    { label: "Universe", onClick: nav.layer > 1 ? () => onGo(1) : undefined, current: nav.layer === 1 },
+  ];
+  if (nav.layer >= 2 && nav.regionLabel)
+    parts.push({
+      label: nav.regionLabel,
+      onClick: nav.layer > 2 ? () => onGo(2, nav.regionId!) : undefined,
+      current: nav.layer === 2,
+    });
+  if (nav.layer >= 3 && nav.subLabel)
+    parts.push({
+      label: nav.subLabel,
+      onClick: nav.layer > 3 ? () => onGo(3, nav.subId!) : undefined,
+      current: nav.layer === 3,
+    });
+  if (nav.layer === 4 && band) parts.push({ label: band, current: true });
+  return (
+    <nav aria-label="Where you are" className="flex flex-wrap items-center gap-1 tracking-wide">
+      {parts.map((p, i) => (
+        <span key={i} className="flex items-center gap-1">
+          {i > 0 && <span className="text-zinc-700">›</span>}
+          {p.onClick ? (
+            <button onClick={p.onClick} className="rounded px-1 text-zinc-400 hover:text-zinc-100">
+              {p.label}
+            </button>
+          ) : (
+            <span className="px-1 font-medium" style={{ color: p.current && i > 0 && nav.color ? nav.color : "#e4e4ee" }}>
+              {p.label}
+            </span>
+          )}
+        </span>
+      ))}
+    </nav>
   );
 }
 
