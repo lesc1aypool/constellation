@@ -51,6 +51,7 @@ export default function GalaxyMap({ galaxy, selected, onSelect, ref }: Props) {
   const selectedRef = useRef<string | null>(selected);
   const neighboursRef = useRef<Set<string>>(new Set());
   const labelledRef = useRef<Set<string>>(new Set()); // neighbours that always get a label
+  const maxWeightRef = useRef(1); // strongest link of the selected artist
   const onSelectRef = useRef(onSelect);
   useEffect(() => {
     onSelectRef.current = onSelect;
@@ -179,7 +180,17 @@ export default function GalaxyMap({ galaxy, selected, onSelect, ref }: Props) {
             if (s !== sel && t !== sel) return { ...res, hidden: true };
             const other = s === sel ? t : s;
             const col = graph.getNodeAttribute(other, "baseColor") as string;
-            return { ...res, color: edgeColor(col, 0.3 + 0.6 * (data.weight as number)), size: (data.size as number) * 1.4, zIndex: 1 };
+            // Line width shows listener overlap relative to this artist's
+            // closest match. Squaring exaggerates the gap, so the strongest
+            // link is nearly as wide as its star and weak ones are hairlines.
+            const rel = Math.pow((data.weight as number) / maxWeightRef.current, 2);
+            const starWidth = 2 * (graph.getNodeAttribute(other, "size") as number);
+            return {
+              ...res,
+              color: edgeColor(col, 0.25 + 0.65 * rel),
+              size: 0.4 + rel * starWidth * 0.85,
+              zIndex: 1,
+            };
           }
           const a = Math.min(alphaOf(s), alphaOf(t));
           if (a === 0) return { ...res, hidden: true };
@@ -254,6 +265,9 @@ export default function GalaxyMap({ galaxy, selected, onSelect, ref }: Props) {
     const graph = graphRef.current;
     const valid = selected && graph?.hasNode(selected);
     neighboursRef.current = new Set(valid ? graph!.neighbors(selected) : []);
+    maxWeightRef.current = valid
+      ? Math.max(...graph!.mapEdges(selected, (_e, attrs) => attrs.weight as number), 0.01)
+      : 1;
     labelledRef.current = new Set(
       valid
         ? graph!

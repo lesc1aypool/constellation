@@ -9,7 +9,7 @@ html,
 body {
   background: #05060d;
   color: #ededf5;
-  font-family: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  font-family: var(--font-geist-sans, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
   overscroll-behavior: none;
 }
 
