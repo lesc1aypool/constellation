@@ -1,0 +1,235 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-geist-sans, ui-sans-serif, system-ui, sans-serif);
+  --font-mono: var(--font-geist-mono, ui-monospace, monospace);
+}
+
+html,
+body {
+  background: #05060d;
+  color: #ededf5;
+  font-family: var(--font-geist-sans, ui-sans-serif), ui-sans-serif, system-ui, sans-serif;
+  overscroll-behavior: none;
+}
+
+/* Deep-space background: a faint nebula wash plus two slowly drifting layers
+   of tiny background stars, so the sky never feels completely static. */
+.starfield {
+  background:
+    radial-gradient(ellipse at 20% 30%, rgba(80, 60, 160, 0.10), transparent 55%),
+    radial-gradient(ellipse at 80% 70%, rgba(30, 110, 160, 0.08), transparent 50%),
+    #05060d;
+  touch-action: none;
+}
+.starfield::before,
+.starfield::after {
+  content: "";
+  position: absolute;
+  inset: -50%;
+  pointer-events: none;
+  background-image:
+    radial-gradient(1px 1px at 20px 30px, rgba(255, 255, 255, 0.5), transparent),
+    radial-gradient(1px 1px at 120px 80px, rgba(255, 255, 255, 0.35), transparent),
+    radial-gradient(1px 1px at 200px 160px, rgba(200, 210, 255, 0.4), transparent),
+    radial-gradient(1px 1px at 60px 190px, rgba(255, 255, 255, 0.25), transparent);
+  background-size: 240px 240px;
+  animation: drift 240s linear infinite;
+  opacity: 0.5;
+}
+.starfield::after {
+  background-size: 370px 370px;
+  animation-duration: 400s;
+  animation-direction: reverse;
+  opacity: 0.35;
+}
+@keyframes drift {
+  from { transform: translate3d(0, 0, 0); }
+  to { transform: translate3d(-240px, -120px, 0); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .starfield::before,
+  .starfield::after { animation: none; }
+}
+
+/* Genre / subgenre names floating over the map (positioned from JS).
+   They are buttons: click or tap one to enter it. */
+.cluster-label {
+  position: absolute;
+  left: 0;
+  top: 0;
+  padding: 6px 10px;
+  border: 0;
+  background: none;
+  font: inherit;
+  white-space: nowrap;
+  text-transform: uppercase;
+  pointer-events: none;
+  transition: opacity 650ms ease, filter 400ms ease, letter-spacing 400ms ease;
+  will-change: transform, opacity;
+}
+.cluster-label.is-clickable {
+  pointer-events: auto;
+  cursor: pointer;
+}
+.cluster-label--region {
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: 0.22em;
+  text-shadow: 0 0 18px currentColor, 0 0 4px rgba(0, 0, 0, 0.9);
+}
+.cluster-label--sub {
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-shadow: 0 0 12px currentColor, 0 0 3px rgba(0, 0, 0, 0.95);
+}
+.cluster-label--sub.is-current {
+  font-size: 15px;
+  letter-spacing: 0.24em;
+  text-shadow: 0 0 22px currentColor, 0 0 4px rgba(0, 0, 0, 0.95);
+}
+.cluster-label.is-focused {
+  filter: brightness(1.35);
+  letter-spacing: 0.28em;
+}
+
+/* Line tag: hovering a line whose band is off-screen shows that band's name
+   and an arrow drifting toward it. */
+.line-tag {
+  position: absolute;
+  left: 0;
+  top: 0;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 4px 3px 10px;
+  margin: -34px 0 0 12px;
+  border-radius: 999px;
+  background: rgba(10, 11, 22, 0.88);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--c, #fff) 45%, transparent), 0 0 18px color-mix(in srgb, var(--c, #fff) 30%, transparent);
+  color: #f4f3fb;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  opacity: 0;
+  transition: opacity 180ms ease;
+  will-change: transform, opacity;
+}
+.line-tag.on {
+  opacity: 1;
+}
+.line-tag__arrow {
+  display: grid;
+  place-items: center;
+  width: 20px;
+  height: 20px;
+  color: var(--c, #fff);
+}
+.line-tag__chevron {
+  display: block;
+  font-size: 13px;
+  line-height: 1;
+  animation: tag-drift 1.4s ease-in-out infinite;
+}
+@keyframes tag-drift {
+  0%, 100% { transform: translateX(-2px); opacity: 0.55; }
+  50% { transform: translateX(3px); opacity: 1; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .line-tag__chevron { animation: none; }
+}
+
+/* Nebulas: soft colour clouds behind each genre and subgenre. */
+.nebula {
+  position: absolute;
+  left: 0;
+  top: 0;
+  border-radius: 50%;
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--c) 30%, transparent) 0%,
+    color-mix(in srgb, var(--c) 12%, transparent) 32%,
+    color-mix(in srgb, var(--c) 4%, transparent) 55%,
+    transparent 70%
+  );
+  mix-blend-mode: screen;
+  transition: opacity 900ms ease;
+  will-change: transform, opacity, width;
+}
+
+/* Focus glow: what you're aiming at breathes softly with a slow ripple.
+   Two of these crossfade when focus moves, so it never jumps. */
+.focus-glow {
+  position: absolute;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  transition: opacity 420ms ease, width 300ms ease, height 300ms ease;
+  mix-blend-mode: screen;
+  will-change: transform, opacity;
+}
+.focus-glow.on {
+  opacity: 1;
+}
+.focus-glow__bloom,
+.focus-glow__ring {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+}
+.focus-glow__bloom {
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--c) 55%, white) 0%,
+    color-mix(in srgb, var(--c) 55%, transparent) 14%,
+    color-mix(in srgb, var(--c) 22%, transparent) 32%,
+    color-mix(in srgb, var(--c) 6%, transparent) 52%,
+    transparent 68%
+  );
+  animation: glow-breathe 2.8s ease-in-out infinite;
+}
+.focus-glow__ring {
+  inset: 34%;
+  border: 1.5px solid color-mix(in srgb, var(--c) 80%, white);
+  box-shadow: 0 0 12px var(--c);
+  opacity: 0;
+  animation: glow-ripple 2.8s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+}
+.focus-glow.is-cluster .focus-glow__bloom {
+  background: radial-gradient(
+    circle,
+    color-mix(in srgb, var(--c) 42%, transparent) 0%,
+    color-mix(in srgb, var(--c) 20%, transparent) 30%,
+    color-mix(in srgb, var(--c) 6%, transparent) 50%,
+    transparent 68%
+  );
+}
+.focus-glow.is-cluster .focus-glow__ring {
+  inset: 22%;
+  border-width: 1px;
+}
+@keyframes glow-breathe {
+  0%, 100% { transform: scale(0.86); opacity: 0.6; }
+  50% { transform: scale(1.06); opacity: 1; }
+}
+@keyframes glow-ripple {
+  0% { transform: scale(0.7); opacity: 0; }
+  12% { opacity: 0.75; }
+  100% { transform: scale(2.1); opacity: 0; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .focus-glow__bloom { animation: none; }
+  .focus-glow__ring { animation: none; opacity: 0.5; }
+}
+
+@media (max-width: 640px) {
+  .cluster-label--region {
+    font-size: 11px;
+    letter-spacing: 0.12em;
+  }
+  .cluster-label--sub {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+  }
+}
