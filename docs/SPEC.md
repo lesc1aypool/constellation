@@ -53,7 +53,7 @@ Exploring the map moves through five **layers of interaction** (refer to them as
 - "Constellation" is reserved for user-drawn constellations (see below), not for layer 4.
 - Layers 1–2 come from hierarchical community detection (Leiden) in the offline script; genre tags name each region.
 - Layer 3 ranks bands by listener counts; smaller artists fade in as you zoom.
-- Camera glides smoothly between layers while detail fades in and out.
+- **Layers are snap points.** The view always rests on exactly one layer; you can't stop between two. Scrolling, pinching or the +/− buttons move one layer in or out (2 → 3, 3 → 4), and an animated transition carries the camera there while bands and labels fade in or out. (Agreed 2026-11-25.)
 - **Orientation (secondary):** a small breadcrumb at the side shows where you are (e.g. Universe › Stoner Rock › Doom Metal), alongside the trail of bands visited. Kept small; it supports the visual exploration and never competes with it.
 
 ### Band solar systems (later)
